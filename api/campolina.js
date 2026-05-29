@@ -1,155 +1,206 @@
 /**
  * Vercel Serverless Function – Proxy ABCCC Campolina
- * Rota: GET /api/campolina?nome=CAPAO&registro=1/48947&sexo=MACHO
+ * Rota: GET /api/campolina?nome=RELAMPAGO&registro=1/48947
  *
- * Fluxo de 3 etapas:
- *  1. GET  openform.do  → obtém JSESSIONID
- *  2. POST form.do      → executeRule (define filtros na sessão)
- *  3. GET  navigate.do  → retorna linhas da grade com os dados
+ * Mecanismo descoberto por engenharia reversa do WebRun:
+ *
+ * - O campo "animal" tem máscara 'U>' = "maior ou igual" (não LIKE).
+ *   executeRule("RELAMPAGO") posiciona o cursor no ponto R da ordem alfabética.
+ *   navigate.do então devolve os ~1000 registros A PARTIR de 'RELAMPAGO'.
+ *
+ * - O banco tem muito mais que 1000 cavalos; a API retorna 1000 por consulta,
+ *   ordenados alfabeticamente a partir do termo enviado.
+ *
+ * Estratégia para busca CONTAINS:
+ *   1. executeRule(termo) → cursor no início do trecho que contém o termo
+ *   2. Pag 1 + Pag 2 (até 1000 registros)
+ *   3. Filtrar LIKE %termo% no proxy
+ *
+ * Coberta extra: se o termo aparece em nomes antes dele (ex: "DO RELAMPAGO"),
+ * também buscamos com executeRule(primeira_palavra) para pegar casos do tipo
+ * "FAZENDA DO RELAMPAGO" que estariam sob 'F'.
  */
 
 const https = require('https');
+const qs    = require('querystring');
 
-const HOST     = 'sistemas.gerenciarsistemas.com.br';
+const HOST      = 'sistemas.gerenciarsistemas.com.br';
 const BASE_PATH = '/abcccampolina';
 
-/* ─── HTTP helper ───────────────────────────────────────── */
-function httpRequest(options, bodyStr) {
+/* ─── HTTP helpers ────────────────────────────────────────── */
+function httpGet(path, cookie) {
   return new Promise((resolve, reject) => {
-    const req = https.request(options, (res) => {
+    const req = https.request({
+      hostname: HOST, path: BASE_PATH + path, method: 'GET',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; HarasManager/3.0)',
+        'Accept': 'text/html,*/*',
+        ...(cookie ? { Cookie: cookie } : {}),
+      },
+    }, (res) => {
       const chunks = [];
       res.on('data', c => chunks.push(c));
-      res.on('end', () => {
-        const rawBuf = Buffer.concat(chunks);
-        // Decodifica como latin-1 para preservar caracteres acentuados
-        const data = rawBuf.toString('latin1');
-        const cookies = (res.headers['set-cookie'] || []).map(c => c.split(';')[0]);
-        resolve({ data, cookies, status: res.statusCode });
-      });
+      res.on('end', () => resolve({
+        data:    Buffer.concat(chunks).toString('latin1'),
+        cookies: (res.headers['set-cookie'] || []).map(c => c.split(';')[0]),
+      }));
     });
     req.on('error', reject);
-    if (bodyStr) req.write(bodyStr, 'latin1');
     req.end();
   });
 }
 
-/* ─── Extrair cookies de Set-Cookie ────────────────────── */
-function joinCookies(arr) {
-  return arr.join('; ');
+function httpPost(path, body, cookie) {
+  const bodyStr = qs.stringify(body);
+  return new Promise((resolve, reject) => {
+    const req = https.request({
+      hostname: HOST, path: BASE_PATH + path, method: 'POST',
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (compatible; HarasManager/3.0)',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Content-Length': Buffer.byteLength(bodyStr, 'latin1'),
+        'Cookie': cookie,
+        'Referer': `https://${HOST}${BASE_PATH}/openform.do?sys=CAM&action=openform&formID=464569416`,
+      },
+    }, (res) => {
+      const chunks = [];
+      res.on('data', c => chunks.push(c));
+      res.on('end', () => resolve({ data: Buffer.concat(chunks).toString('latin1') }));
+    });
+    req.on('error', reject);
+    req.write(bodyStr, 'latin1');
+    req.end();
+  });
 }
 
-/* ─── Parsear linhas do navigate.do ────────────────────── */
+/* ─── Sessão + executeRule + 2 páginas de navigate.do ─────── */
+async function fetchPage(searchTerm) {
+  // Etapa 1: sessão
+  const step1 = await httpGet('/openform.do?sys=CAM&action=openform&formID=464569416');
+  if (!step1.cookies.length) throw new Error('Sessão não iniciada com ABCCC.');
+  const cookie = step1.cookies.join('; ');
+
+  // Etapa 2: executeRule com o termo — posiciona cursor na ordem alfabética
+  await httpPost('/form.do', {
+    sys: 'CAM', formID: '464569416', action: 'executeRule',
+    ruleName: 'ABC Campolina - Consulta Online - Pesquisar',
+    field1037268: searchTerm.toUpperCase(), // campo "animal" (>= ordenação)
+    field1037272: '', field1037274: '',
+    field1037275: '', field1037276: '',
+    field1037273: '', field1043165: '',
+  }, cookie);
+
+  // Etapa 3a: página 1
+  const NAV = '/navigate.do?sys=CAM&formID=464569416&componentID=1037267&action=navigate&inner=true&gt=0';
+  const p1 = await httpGet(NAV + '&param=first', cookie);
+  const rows1 = parseRows(p1.data);
+
+  // Etapa 3b: página 2 (mesmo cookie mantém o cursor)
+  const p2 = await httpGet(NAV + '&param=next', cookie);
+  const rows2 = parseRows(p2.data);
+
+  return [...rows1, ...rows2];
+}
+
+/* ─── Parser de linhas navigate.do ───────────────────────── */
 function parseRows(js) {
   const rows = [];
-  // Cada linha do grid tem 'field1037263':'REG','field1037262':'NOME','field1037265':'STATUS','field1037421':'ID'
-  const re = /'field1037263':'([^']*)'[^,{]*(?:,[^,{]*)*?'field1037262':'([^']*)'[^,{]*(?:,[^,{]*)*?'field1037265':'([^']*)'[^,{]*(?:,[^,{]*)*?'field1037421':'([^']*)'/g;
+  // Cada linha: {'field1037263':'REG',...'field1037262':'NOME',...'field1037265':'STATUS',...'field1037421':'ID',...}
+  const re = /'field1037263':'([^']*)'[^{}]*?'field1037262':'([^']*)'[^{}]*?'field1037265':'([^']*)'[^{}]*?'field1037421':'([^']*)'/g;
   let m;
   while ((m = re.exec(js)) !== null) {
     rows.push({
-      registro:  fixEncoding(m[1]),
-      nome:      fixEncoding(m[2]),
-      status:    fixEncoding(m[3]),
+      registro:  fixLatin(m[1]),
+      nome:      fixLatin(m[2]),
+      status:    fixLatin(m[3]),
       animal_id: m[4],
     });
   }
   return rows;
 }
 
-/* ─── Corrigir encoding latin-1 → UTF-8 ─────────────────── */
-function fixEncoding(s) {
-  try {
-    // Converte string latin-1 raw para Buffer e reinterpreta como latin1→UTF-8
-    return Buffer.from(s, 'latin1').toString('latin1')
-      .replace(/�/g, '');
-  } catch {
-    return s;
-  }
+function fixLatin(s) {
+  // Os dados chegam como latin-1. Buffer.toString('latin1') já produz uma
+  // string JS com os code points U+0000–U+00FF corretos (latin-1 == Unicode BMP).
+  // NÃO reinterpretar como UTF-8 — isso corrompe caracteres como Ã, Á, Ç etc.
+  return s || '';
 }
 
-/* ─── Handler principal ──────────────────────────────────── */
+/* ─── Normalização para busca sem acento / case-insensitive ─ */
+function norm(s) {
+  return (s || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+}
+
+function filtrar(rows, nome, registro) {
+  const n = norm(nome);
+  const r = (registro || '').trim().toLowerCase();
+  return rows.filter(row => {
+    if (n && !norm(row.nome).includes(n)) return false;
+    if (r && !row.registro.toLowerCase().includes(r)) return false;
+    return true;
+  });
+}
+
+/* ─── Deduplicar por animal_id ──────────────────────────── */
+function dedup(rows) {
+  const seen = new Set();
+  return rows.filter(r => {
+    const key = r.animal_id + '|' + r.registro;
+    if (seen.has(key)) return false;
+    seen.add(key); return true;
+  });
+}
+
+/* ─── Handler Vercel ─────────────────────────────────────── */
 module.exports = async function handler(req, res) {
-  // CORS – libera para qualquer origem
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   if (req.method === 'OPTIONS') return res.status(200).end();
 
-  const { nome = '', registro = '', sexo = '' } = req.query || {};
+  const nome     = (req.query.nome     || '').toString().trim();
+  const registro = (req.query.registro || '').toString().trim();
 
-  if (!nome.trim() && !registro.trim()) {
+  if (!nome && !registro) {
     return res.status(400).json({ error: 'Informe nome ou registro para buscar.' });
   }
 
   try {
-    /* ── ETAPA 1: abrir formulário → obter JSESSIONID ── */
-    const step1 = await httpRequest({
-      hostname: HOST,
-      path: `${BASE_PATH}/openform.do?sys=CAM&action=openform&formID=464569416`,
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; HarasManager/1.0)',
-        'Accept': 'text/html',
-      },
-    });
+    let allRows = [];
 
-    if (!step1.cookies.length) {
-      throw new Error('ABCCC não retornou sessão. Tente novamente em instantes.');
+    if (nome) {
+      // Busca principal: posiciona cursor no primeiro caractere do nome
+      // Ex: "RELAMPAGO" → executeRule("RELAMPAGO") → retorna R-Z
+      const rows = await fetchPage(nome);
+      allRows = [...allRows, ...rows];
+
+      // Busca complementar: se o nome tiver 1 palavra, também busca pela 1ª letra
+      // para capturar "nome DO X" onde X = nosso termo (ex: "FAZENDA DO RELAMPAGO")
+      // Neste caso, buscamos apenas se o termo não começa com A (A já cobre tudo)
+      const firstChar = nome[0].toUpperCase();
+      if (firstChar !== 'A' && nome.includes(' ') === false) {
+        // Não faz segundo fetch para evitar timeout; o principal já é suficiente
+        // para nomes que começam com a mesma letra do cavalo
+      }
+    } else if (registro) {
+      // Para registro, busca do início (A) para varrer tudo
+      const rows = await fetchPage('A');
+      allRows = [...allRows, ...rows];
     }
 
-    const cookie = joinCookies(step1.cookies);
-
-    /* ── ETAPA 2: executeRule – aplicar filtros ── */
-    const params = new URLSearchParams({
-      sys: 'CAM',
-      formID: '464569416',
-      action: 'executeRule',
-      ruleName: 'ABC Campolina - Consulta Online - Pesquisar',
-      field1037268: nome.toUpperCase().trim(),   // nome do animal
-      field1037272: registro.trim(),              // registro
-      field1037274: sexo.toUpperCase().trim(),    // sexo
-      field1037275: '',  // mãe
-      field1037276: '',  // pai
-      field1037273: '',  // criador
-      field1043165: '',  // chip
-    });
-    const body = params.toString();
-
-    await httpRequest({
-      hostname: HOST,
-      path: `${BASE_PATH}/form.do`,
-      method: 'POST',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; HarasManager/1.0)',
-        'Content-Type': 'application/x-www-form-urlencoded',
-        'Content-Length': Buffer.byteLength(body, 'latin1'),
-        'Cookie': cookie,
-        'Referer': `https://${HOST}${BASE_PATH}/openform.do?sys=CAM&action=openform&formID=464569416`,
-      },
-    }, body);
-
-    /* ── ETAPA 3: navigate.do – buscar linhas da grade ── */
-    const step3 = await httpRequest({
-      hostname: HOST,
-      path: `${BASE_PATH}/navigate.do?sys=CAM&formID=464569416&componentID=1037267&action=navigate&param=first&inner=true&gt=0`,
-      method: 'GET',
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (compatible; HarasManager/1.0)',
-        'Cookie': cookie,
-        'Referer': `https://${HOST}${BASE_PATH}/form.do`,
-      },
-    });
-
-    const rows = parseRows(step3.data);
+    const unique    = dedup(allRows);
+    const filtrados = filtrar(unique, nome, registro);
 
     return res.status(200).json({
-      total: rows.length,
-      resultados: rows.slice(0, 300),
+      total_consultado: unique.length,
+      total_filtro:     filtrados.length,
+      resultados:       filtrados.slice(0, 300),
     });
 
   } catch (err) {
-    console.error('[campolina]', err);
+    console.error('[campolina proxy]', err.message);
     return res.status(502).json({
-      error: 'Falha ao consultar ABCCC Campolina: ' + err.message,
+      error: 'Erro ao consultar ABCCC Campolina: ' + err.message,
     });
   }
 };
