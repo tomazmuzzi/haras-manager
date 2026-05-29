@@ -28,6 +28,74 @@
       --shadow:    0 2px 12px rgba(62,31,16,.15);
     }
 
+    /* ── Login Screen ────────────────────────────────── */
+    #login-screen {
+      position: fixed; inset: 0; z-index: 9999;
+      background: linear-gradient(135deg, var(--dark) 0%, var(--brown) 50%, var(--saddle) 100%);
+      display: flex; align-items: center; justify-content: center;
+    }
+    #login-screen.hidden { display: none; }
+    .login-box {
+      background: var(--white);
+      border-radius: 16px;
+      padding: 40px 44px;
+      width: 100%;
+      max-width: 400px;
+      box-shadow: 0 20px 60px rgba(0,0,0,.5);
+      text-align: center;
+    }
+    .login-horse { font-size: 4rem; margin-bottom: 8px; }
+    .login-box h2 { font-size: 1.6rem; color: var(--dark); margin-bottom: 4px; }
+    .login-box p  { color: var(--muted); font-size: .9rem; margin-bottom: 28px; }
+    .login-box .form-group { text-align: left; margin-bottom: 16px; }
+    .login-error {
+      background: #fff0f0; border: 1px solid #f5c6c6;
+      color: var(--danger); padding: 8px 14px;
+      border-radius: var(--radius); font-size: .88rem;
+      margin-bottom: 14px; display: none;
+    }
+    .login-btn {
+      width: 100%; padding: 12px;
+      background: linear-gradient(90deg, var(--brown), var(--saddle));
+      color: var(--wheat); border: none;
+      border-radius: var(--radius); font-size: 1rem;
+      font-family: inherit; cursor: pointer; font-weight: bold;
+      transition: opacity .2s;
+    }
+    .login-btn:hover { opacity: .9; }
+    .login-footer { margin-top: 20px; font-size: .78rem; color: var(--muted); }
+
+    /* ── Campolina search panel ──────────────────────── */
+    .camp-panel {
+      background: var(--cream);
+      border: 1px solid var(--tan);
+      border-radius: var(--radius);
+      padding: 14px;
+      margin-top: 12px;
+    }
+    .camp-results {
+      max-height: 220px;
+      overflow-y: auto;
+      margin-top: 10px;
+    }
+    .camp-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 8px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: background .15s;
+      gap: 10px;
+    }
+    .camp-row:hover { background: var(--parchment); }
+    .camp-row .cr-name { font-weight: bold; color: var(--dark); font-size: .92rem; }
+    .camp-row .cr-reg  { font-size: .78rem; color: var(--muted); }
+    .camp-row .cr-status { font-size: .75rem; }
+    .camp-loading { text-align: center; padding: 20px; color: var(--muted); }
+    .camp-badge-ativo { color: var(--success); font-weight: bold; }
+    .camp-badge-other { color: var(--warn); }
+
     body {
       font-family: 'Georgia', serif;
       background: var(--cream);
@@ -305,12 +373,66 @@
 </head>
 <body>
 
+<!-- ══════════════ LOGIN SCREEN ══════════════ -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-horse">🐴</div>
+    <h2>Haras Manager</h2>
+    <p>Gestão de Fazenda de Cavalos</p>
+    <div class="login-error" id="login-error">Senha incorreta. Tente novamente.</div>
+    <div class="form-group">
+      <label class="form-group" style="font-size:.82rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px">Senha de Acesso</label>
+      <input class="form-control" id="login-senha" type="password" placeholder="Digite a senha…"
+        style="width:100%;font-size:1rem;padding:10px 14px"
+        onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <button class="login-btn" onclick="doLogin()">🔑 Entrar</button>
+    <div class="login-footer">
+      Acesso restrito — Haras Manager v2.0<br>
+      <small id="login-change-link" style="cursor:pointer;text-decoration:underline;display:none" onclick="showChangePassword()">Alterar senha</small>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: Alterar senha -->
+<div class="modal-overlay" id="modal-senha">
+  <div class="modal" style="max-width:380px">
+    <div class="modal-header">
+      <h3>Alterar Senha</h3>
+      <button class="modal-close" onclick="closeModal('modal-senha')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group" style="margin-bottom:12px">
+        <label class="form-group" style="font-size:.82rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px">Senha Atual</label>
+        <input class="form-control" id="senha-atual" type="password" style="width:100%">
+      </div>
+      <div class="form-group" style="margin-bottom:12px">
+        <label class="form-group" style="font-size:.82rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px">Nova Senha</label>
+        <input class="form-control" id="senha-nova" type="password" style="width:100%">
+      </div>
+      <div class="form-group">
+        <label class="form-group" style="font-size:.82rem;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;display:block;margin-bottom:4px">Confirmar Nova Senha</label>
+        <input class="form-control" id="senha-confirm" type="password" style="width:100%">
+      </div>
+      <p id="senha-msg" style="color:var(--danger);font-size:.85rem;margin-top:8px;display:none"></p>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('modal-senha')">Cancelar</button>
+      <button class="btn btn-primary" onclick="salvarSenha()">💾 Salvar</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════════ HEADER ══════════════ -->
 <header>
   <span class="header-icon">🐴</span>
-  <div>
+  <div style="flex:1">
     <h1>Haras Manager</h1>
     <span class="sub">Sistema de Gestão de Fazenda</span>
+  </div>
+  <div style="display:flex;gap:8px;align-items:center">
+    <button class="btn btn-secondary btn-sm" onclick="showChangePassword()" title="Alterar senha" style="background:rgba(255,255,255,.12);color:var(--wheat);border-color:rgba(255,255,255,.2)">🔒 Senha</button>
+    <button class="btn btn-secondary btn-sm" onclick="doLogout()" style="background:rgba(255,255,255,.12);color:var(--wheat);border-color:rgba(255,255,255,.2)">🚪 Sair</button>
   </div>
 </header>
 
@@ -721,6 +843,23 @@
           <input class="form-control" id="animal-proprietario" placeholder="Nome do proprietário">
         </div>
       </div>
+      <!-- ── Busca ABCCC Campolina ── -->
+      <div class="camp-panel mt-4">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap">
+          <div style="font-size:.85rem;font-weight:bold;color:var(--brown)">🔍 Buscar no Registro Oficial ABCCC Campolina</div>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input class="form-control" id="camp-busca" placeholder="Nome do animal…"
+              style="min-width:180px;font-size:.9rem"
+              onkeydown="if(event.key==='Enter')buscarCampolina()">
+            <button class="btn btn-primary btn-sm" onclick="buscarCampolina()" id="camp-btn">Buscar</button>
+          </div>
+        </div>
+        <div id="camp-results-container" style="display:none">
+          <div class="camp-results" id="camp-results"></div>
+          <p style="font-size:.75rem;color:var(--muted);margin-top:6px">Clique em um resultado para preencher o formulário automaticamente</p>
+        </div>
+      </div>
+
       <div class="form-group mt-4">
         <label>Observações</label>
         <textarea class="form-control" id="animal-obs" rows="2" placeholder="Notas adicionais…"></textarea>
@@ -1885,6 +2024,224 @@ seedDemoData();
 refreshAnimaisSelects();
 renderAnimais();
 renderNascimentos();
+
+// ══════════════════════════════════════════════════
+//  AUTENTICAÇÃO – senha simples com hash SHA-256
+// ══════════════════════════════════════════════════
+const SENHA_KEY    = 'haras_senha_hash';
+const SESSION_KEY  = 'haras_session';
+const DEFAULT_PASS = 'haras2024'; // senha padrão inicial
+
+async function sha256(str) {
+  const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(str));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+async function getSenhaHash() {
+  return localStorage.getItem(SENHA_KEY) || await sha256(DEFAULT_PASS);
+}
+
+async function doLogin() {
+  const senha = document.getElementById('login-senha').value;
+  if (!senha) return;
+  const hash = await sha256(senha);
+  const stored = await getSenhaHash();
+  if (hash === stored) {
+    // Sessão válida por 8 horas
+    const exp = Date.now() + 8 * 60 * 60 * 1000;
+    localStorage.setItem(SESSION_KEY, JSON.stringify({ exp }));
+    document.getElementById('login-screen').classList.add('hidden');
+    document.getElementById('login-error').style.display = 'none';
+  } else {
+    const err = document.getElementById('login-error');
+    err.style.display = 'block';
+    err.textContent = 'Senha incorreta. Tente novamente.';
+    document.getElementById('login-senha').value = '';
+    document.getElementById('login-senha').focus();
+  }
+}
+
+function doLogout() {
+  localStorage.removeItem(SESSION_KEY);
+  location.reload();
+}
+
+function showChangePassword() {
+  closeModal('modal-senha');
+  document.getElementById('senha-atual').value = '';
+  document.getElementById('senha-nova').value = '';
+  document.getElementById('senha-confirm').value = '';
+  document.getElementById('senha-msg').style.display = 'none';
+  openModal('modal-senha');
+}
+
+async function salvarSenha() {
+  const atual   = document.getElementById('senha-atual').value;
+  const nova    = document.getElementById('senha-nova').value;
+  const confirm = document.getElementById('senha-confirm').value;
+  const msg     = document.getElementById('senha-msg');
+
+  if (!nova || nova.length < 4) {
+    msg.textContent = 'A nova senha deve ter pelo menos 4 caracteres.';
+    msg.style.display = 'block'; return;
+  }
+  if (nova !== confirm) {
+    msg.textContent = 'As senhas não coincidem.';
+    msg.style.display = 'block'; return;
+  }
+
+  const hashAtual   = await sha256(atual);
+  const storedHash  = await getSenhaHash();
+  if (hashAtual !== storedHash) {
+    msg.textContent = 'Senha atual incorreta.';
+    msg.style.display = 'block'; return;
+  }
+
+  localStorage.setItem(SENHA_KEY, await sha256(nova));
+  msg.style.display = 'none';
+  closeModal('modal-senha');
+  alert('✅ Senha alterada com sucesso!');
+}
+
+async function checkSession() {
+  const raw = localStorage.getItem(SESSION_KEY);
+  if (raw) {
+    try {
+      const s = JSON.parse(raw);
+      if (s.exp && Date.now() < s.exp) {
+        document.getElementById('login-screen').classList.add('hidden');
+        document.getElementById('login-change-link').style.display = 'inline';
+        return;
+      }
+    } catch(e) {}
+  }
+  // Sem sessão válida – mostrar login
+  document.getElementById('login-screen').classList.remove('hidden');
+  setTimeout(() => document.getElementById('login-senha').focus(), 100);
+}
+
+// ══════════════════════════════════════════════════
+//  INTEGRAÇÃO ABCCC CAMPOLINA
+// ══════════════════════════════════════════════════
+
+// Detecta se está rodando no Vercel (tem /api/) ou no GitHub Pages (sem backend)
+function getApiBase() {
+  // Se a URL for do Vercel ou localhost com port padrão, usa /api
+  const host = location.hostname;
+  if (host.includes('vercel.app') || host.includes('localhost') || host === '127.0.0.1') {
+    return '/api';
+  }
+  // GitHub Pages – sem backend disponível
+  return null;
+}
+
+async function buscarCampolina() {
+  const termo = document.getElementById('camp-busca').value.trim();
+  if (!termo || termo.length < 2) {
+    alert('Digite pelo menos 2 caracteres para buscar.'); return;
+  }
+
+  const apiBase = getApiBase();
+  const container = document.getElementById('camp-results-container');
+  const resultsDiv = document.getElementById('camp-results');
+  const btn = document.getElementById('camp-btn');
+
+  if (!apiBase) {
+    // Fallback: redirecionar para o site oficial
+    resultsDiv.innerHTML = `
+      <div style="padding:16px;text-align:center;">
+        <p style="margin-bottom:10px;color:var(--muted);font-size:.9rem">
+          Busca automática disponível apenas na versão Vercel.<br>
+          Acesse o site oficial para consultar:
+        </p>
+        <a href="https://sistemas.gerenciarsistemas.com.br/abcccampolina/form.jsp?sys=CAM&action=openform&formID=464569416"
+           target="_blank" class="btn btn-primary btn-sm">🔗 Abrir ABCCC Campolina</a>
+      </div>`;
+    container.style.display = 'block';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Buscando…';
+  container.style.display = 'block';
+  resultsDiv.innerHTML = '<div class="camp-loading">🔍 Consultando registro oficial ABCCC…</div>';
+
+  try {
+    const url = `${apiBase}/campolina?nome=${encodeURIComponent(termo.toUpperCase())}`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const json = await resp.json();
+
+    if (json.error) throw new Error(json.error);
+
+    const rows = json.resultados || [];
+    if (!rows.length) {
+      resultsDiv.innerHTML = `<div class="camp-loading" style="color:var(--danger)">Nenhum animal encontrado para "<strong>${termo}</strong>"</div>`;
+    } else {
+      resultsDiv.innerHTML = rows.map(r => `
+        <div class="camp-row" onclick="preencherAnimal(${JSON.stringify(r).replace(/"/g,'&quot;')})">
+          <div>
+            <div class="cr-name">${r.nome}</div>
+            <div class="cr-reg">Reg.: ${r.registro} &nbsp;|&nbsp; ID: ${r.animal_id}</div>
+          </div>
+          <span class="cr-status ${r.status==='ATIVO'?'camp-badge-ativo':'camp-badge-other'}">${r.status}</span>
+        </div>`).join('');
+    }
+  } catch(e) {
+    resultsDiv.innerHTML = `<div class="camp-loading" style="color:var(--danger)">Erro: ${e.message}</div>`;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Buscar';
+  }
+}
+
+function preencherAnimal(r) {
+  // Preenche os campos do formulário com dados do ABCCC
+  if (r.nome)      document.getElementById('animal-nome').value = toTitleCase(r.nome);
+  if (r.registro)  document.getElementById('animal-registro').value = r.registro;
+  if (r.status === 'ATIVO') document.getElementById('animal-status').value = 'Ativo';
+  if (r.status === 'INATIVO' || r.status === 'FALECIDO') document.getElementById('animal-status').value = 'Falecido';
+
+  // Feedback visual
+  document.getElementById('camp-results-container').style.display = 'none';
+  document.getElementById('camp-busca').value = '';
+
+  // Foca no campo raça para o usuário completar
+  document.getElementById('animal-raca').focus();
+
+  // Toast
+  showToast('✅ Dados importados do ABCCC Campolina!');
+}
+
+function toTitleCase(str) {
+  const lower = ['do','da','de','dos','das','e','em','no','na','nos','nas'];
+  return str.toLowerCase().split(' ')
+    .map((w,i) => (i===0 || !lower.includes(w)) ? w.charAt(0).toUpperCase()+w.slice(1) : w)
+    .join(' ');
+}
+
+function showToast(msg) {
+  let t = document.getElementById('toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast';
+    Object.assign(t.style, {
+      position:'fixed', bottom:'24px', right:'24px', zIndex:'9998',
+      background:'var(--dark)', color:'var(--wheat)',
+      padding:'12px 20px', borderRadius:'8px',
+      boxShadow:'0 4px 20px rgba(0,0,0,.3)',
+      fontSize:'.9rem', transition:'opacity .3s',
+    });
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.opacity = '1';
+  clearTimeout(t._timer);
+  t._timer = setTimeout(() => { t.style.opacity = '0'; }, 3000);
+}
+
+// ── Inicializar verificação de sessão ──────────────
+checkSession();
 </script>
 </body>
 </html>
