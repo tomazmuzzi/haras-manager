@@ -2124,15 +2124,13 @@ async function checkSession() {
 //  INTEGRAÇÃO ABCCC CAMPOLINA
 // ══════════════════════════════════════════════════
 
-// Detecta se está rodando no Vercel (tem /api/) ou no GitHub Pages (sem backend)
+// Detecta se o backend /api está disponível.
+// No GitHub Pages (github.io) não há backend serverless.
+// Em qualquer outro host (Vercel, domínio próprio, localhost) usa /api.
 function getApiBase() {
-  // Se a URL for do Vercel ou localhost com port padrão, usa /api
   const host = location.hostname;
-  if (host.includes('vercel.app') || host.includes('localhost') || host === '127.0.0.1') {
-    return '/api';
-  }
-  // GitHub Pages – sem backend disponível
-  return null;
+  if (host.endsWith('github.io')) return null;
+  return '/api';
 }
 
 async function buscarCampolina() {
