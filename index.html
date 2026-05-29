@@ -441,20 +441,38 @@
 <div id="login-screen">
   <div class="login-box">
     <div class="login-logo">
-      <svg viewBox="0 0 260 90" xmlns="http://www.w3.org/2000/svg" style="width:200px;height:auto">
-        <!-- Horse head outline -->
-        <g fill="none" stroke="#2E3192" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round">
-          <path d="M18,72 C14,60 12,48 16,36 C18,28 22,20 30,14 C36,9 44,7 50,10 L58,6 C63,3 70,4 74,8 C78,12 77,19 73,23 L68,27 C73,30 76,36 74,43 C78,48 80,56 77,64 L71,76 C67,83 59,87 50,85 L38,82 C28,79 20,76 18,72 Z"/>
-          <path d="M58,6 C60,1 66,0 70,3"/>
-          <path d="M50,10 C52,5 57,3 60,5"/>
-          <path d="M36,30 C33,38 31,50 34,60"/>
-          <path d="M44,74 C42,71 42,68 45,67 C47,66 49,68 48,71"/>
+      <!--
+        Cavalo virado para a ESQUERDA (nariz à esquerda, crina/pescoço à direita)
+        ViewBox 0 0 260 92 — cavalo ocupa ~0..80, texto começa em x=90
+      -->
+      <svg viewBox="0 0 260 92" xmlns="http://www.w3.org/2000/svg" style="width:210px;height:auto">
+        <g fill="none" stroke="#2E3192" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+          <!-- Perfil principal: nariz à esq, orelha no alto, pescoço desce à dir -->
+          <path d="
+            M 8,55
+            C 5,49 5,43 8,38
+            C 11,32 16,25 22,18
+            C 27,12 34,7 42,5
+            L 46,1
+            C 49,5 48,12 44,16
+            C 49,18 53,23 52,31
+            C 56,36 59,46 57,57
+            C 58,65 58,72 54,78
+            C 47,85 36,88 25,84
+            C 14,81 7,71 8,61
+            Z
+          "/>
+          <!-- Crina/chanfro interior do pescoço -->
+          <path d="M 28,13 C 25,24 23,38 26,52"/>
+          <!-- Narina -->
+          <path d="M 9,53 C 7,51 7,48 9,47"/>
         </g>
-        <circle cx="65" cy="19" r="2.5" fill="#2E3192"/>
-        <!-- FZS lettering -->
-        <text x="88" y="58" font-family="Inter,Arial,sans-serif" font-weight="800" font-size="46" fill="#2E3192" letter-spacing="-1">FZS</text>
-        <!-- Subtitle -->
-        <text x="88" y="74" font-family="Inter,Arial,sans-serif" font-weight="600" font-size="8.5" fill="#2E3192" letter-spacing="1.2">FAZENDA SEGREDO · PASSA TEMPO-MG</text>
+        <!-- Olho -->
+        <circle cx="43" cy="19" r="2.8" fill="#2E3192"/>
+        <!-- FZS -->
+        <text x="72" y="62" font-family="Inter,Arial,sans-serif" font-weight="800" font-size="50" fill="#2E3192" letter-spacing="-1">FZS</text>
+        <!-- Subtítulo -->
+        <text x="72" y="78" font-family="Inter,Arial,sans-serif" font-weight="600" font-size="8" fill="#2E3192" letter-spacing="1.1">FAZENDA SEGREDO · PASSA TEMPO-MG</text>
       </svg>
     </div>
     <h2>Acesso ao Sistema</h2>
@@ -505,17 +523,29 @@
 
 <!-- ══════════════ HEADER ══════════════ -->
 <header>
-  <svg class="header-logo" viewBox="0 0 220 60" xmlns="http://www.w3.org/2000/svg">
-    <g fill="none" stroke="white" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round">
-      <path d="M12,48 C9,40 8,32 11,24 C13,18 16,13 21,9 C25,6 30,4 34,7 L39,4 C43,2 47,3 50,6 C52,9 52,13 49,16 L46,19 C50,21 52,25 50,30 C53,34 54,40 52,46 L47,53 C44,58 39,61 33,59 L25,56 C18,53 13,52 12,48 Z"/>
-      <path d="M39,4 C40,0 45,-1 47,2"/>
-      <path d="M34,7 C35,3 39,2 41,4"/>
-      <path d="M24,20 C22,26 21,34 23,41"/>
-      <path d="M30,50 C28,48 28,45 30,44 C32,44 33,46 32,48"/>
+  <!-- Mesmo cavalo, escala 0.64 (58/92), nariz à esquerda -->
+  <svg class="header-logo" viewBox="0 0 170 59" xmlns="http://www.w3.org/2000/svg">
+    <g fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="
+        M 5,35
+        C 3,32 3,28 5,24
+        C 7,21 10,16 14,12
+        C 17,8 22,4 27,3
+        L 30,1
+        C 31,3 31,8 28,10
+        C 31,12 34,15 33,20
+        C 36,23 38,30 37,36
+        C 37,42 37,46 35,50
+        C 30,55 23,56 16,54
+        C 9,52 5,45 5,39
+        Z
+      "/>
+      <path d="M 18,8 C 16,15 15,24 17,33"/>
+      <path d="M 6,34 C 5,32 5,31 6,30"/>
     </g>
-    <circle cx="44" cy="12" r="2" fill="white"/>
-    <text x="60" y="40" font-family="Inter,Arial,sans-serif" font-weight="800" font-size="32" fill="white" letter-spacing="-0.5">FZS</text>
-    <text x="60" y="52" font-family="Inter,Arial,sans-serif" font-weight="500" font-size="6.5" fill="rgba(255,255,255,.75)" letter-spacing="1">FAZENDA SEGREDO</text>
+    <circle cx="27" cy="12" r="1.8" fill="white"/>
+    <text x="46" y="40" font-family="Inter,Arial,sans-serif" font-weight="800" font-size="32" fill="white" letter-spacing="-0.5">FZS</text>
+    <text x="46" y="52" font-family="Inter,Arial,sans-serif" font-weight="500" font-size="6" fill="rgba(255,255,255,.75)" letter-spacing="1">FAZENDA SEGREDO</text>
   </svg>
   <div class="header-divider"></div>
   <div style="flex:1">
